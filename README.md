@@ -173,7 +173,7 @@ Start it with `python pybridgeforpmod.py`. It has no window of its own. Its tray
 - **Python Bridge for Penguinmod:** opens the project site.
 - **connected projects: N:** the number of connected projects.
 - **Command history:** each run with its time, project name, command name and the script that ran.
-- **Open Installer:** opens `installer.py` (or `installer.exe`) from the same folder.
+- **Open Installer:** opens `installer.py` from the same folder.
 - **Pause Bridge / Resume Bridge:** while paused, new connections are refused.
 - **Exit:** closes the main app.
 
@@ -223,6 +223,7 @@ pybridgeforpmod.py       main app (tray app)
 installer.py             installer (installs and removes commands)
 builder.html             command builder (open in a browser)
 requirements.txt         Python packages
+LICENSE                  AGPL-3.0 license text
 scratch/pythonBridge.js  PenguinMod extension (load as unsandboxed)
 examples/                sample .config and command
 commands/                installed commands, created by the main app
@@ -234,4 +235,4 @@ bridge.log               errors, created only when something fails
 
 ## License
 
-Add your license here.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the [LICENSE](LICENSE) file for details.
