@@ -1,2 +1,1 @@
-# pybridgeforpmod
-Python bridge for Penguinmod. Both bridge and addon.
+# Python bridge for Penguinmod. Both bridge and addon.
