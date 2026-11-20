@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python Bridge command builder</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 15px/1.45 system-ui, sans-serif; background: #121418; color: #e8eaed; }
+  main { max-width: 960px; margin: 0 auto; padding: 28px 18px 48px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  .muted { color: #9aa3ad; }
+  .card { background: #1c2128; border: 1px solid #2c3440; border-radius: 12px; padding: 16px 18px; margin-top: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  label { display: block; font-size: 13px; color: #9aa3ad; margin: 10px 0 4px; }
+  input, textarea { width: 100%; box-sizing: border-box; background: #0d1014; color: #e8eaed; border: 1px solid #2c3440; border-radius: 8px; padding: 8px 10px; font: inherit; }
+  textarea.code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; min-height: 180px; white-space: pre; }
+  button, .file { background: #306998; color: white; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  button.secondary { background: #2a313b; }
+  button.danger { background: #6b2b2b; }
+  button:disabled { opacity: .45; cursor: default; }
+  .split { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
+  @media (max-width: 720px) { .split { grid-template-columns: 1fr; } }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { padding: 8px 10px; border-radius: 8px; cursor: pointer; word-break: break-all; }
+  li:hover, li.on { background: #273140; }
+  .status { min-height: 20px; font-size: 13px; color: #8fd19e; }
+  .status.err { color: #ff8a8a; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Command builder</h1>
+  
+
+  <div class="card">
+    <div class="row">
+      <button id="newBtn">New project</button>
+      <label class="file" for="loadFile">Load project (.config)</label>
+      <input id="loadFile" type="file" accept=".config,.json,application/json">
+      <span id="status" class="status"></span>
+    </div>
+  </div>
+
+  <div class="card" id="editor" hidden>
+    <h2>Project</h2>
+    <label for="projName">Project name (the name used with "set name to" in Scratch)</label>
+    <input id="projName" placeholder="for example: mygame">
+    <label for="projTitle">Title</label>
+    <input id="projTitle" placeholder="Shown as: Set Up Commands For ...">
+    <label for="projDesc">Description</label>
+    <textarea id="projDesc" rows="2"></textarea>
+  </div>
+
+  <div class="card" id="commandsCard" hidden>
+    <div class="split">
+      <div>
+        <h2>Commands</h2>
+        <ul id="list"></ul>
+        <p class="row" style="margin-top:10px">
+          <button id="addBtn" class="secondary">+ Add command</button>
+        </p>
+      </div>
+      <div>
+        <h2>Selected command</h2>
+        <div id="cmdFields">
+          <label for="cmdName">Command name (used with "run [command]" in Scratch)</label>
+          <input id="cmdName" placeholder="for example: ping">
+          <label for="cmdCode">Python code (must define run(parameters, data))</label>
+          <textarea id="cmdCode" class="code" spellcheck="false"></textarea>
+          <p class="row" style="margin-top:12px">
+            <button id="removeBtn" class="danger">Remove command</button>
+          </p>
+        </div>
+        <p id="noCmd" class="muted" hidden>No command selected. Add one.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="exportCard" hidden>
+    <div class="row">
+      <button id="exportConfig">Export .config</button>
+    </div>
+    <p class="muted">Export .config saves the project. Run installer.py with that file to install the commands.</p>
+  </div>
+</main>
+<script>
+let project = null;
+let selected = -1;
+
+const $ = (id) => document.getElementById(id);
+const status = (text, bad) => { $("status").textContent = text; $("status").className = "status" + (bad ? " err" : ""); };
+
+function newCommand(command, python) {
+  return { name: "", command: command || "", python: python || "def run(parameters, data):\n    return \"ok\"\n" };
+}
+
+function blankProject() {
+  return { name: "", title: "", description: "", commands: [] };
+}
+
+function openProject(data) {
+  const commands = (data.commands || []).map((c) => ({
+    name: String(c.name || ""),
+    command: String(c.command || ""),
+    python: String(c.python || c.code || ""),
+  }));
+  project = {
+    name: String(data.name || (commands[0] && commands[0].name) || ""),
+    title: String(data.title || ""),
+    description: String(data.description || data.desc || ""),
+    commands: commands,
+  };
+  selected = commands.length ? 0 : -1;
+  show();
+}
+
+$("newBtn").addEventListener("click", function () {
+  openProject(blankProject());
+  status("New project started.");
+});
+
+$("loadFile").addEventListener("change", function () {
+  const picked = this.files && this.files[0];
+  if (!picked) return;
+  const reader = new FileReader();
+  reader.onload = function () {
+    try {
+      const data = JSON.parse(String(reader.result));
+      if (!data || !Array.isArray(data.commands)) throw new Error("Config needs a commands list.");
+      openProject(data);
+      status("Loaded " + picked.name + ".");
+    } catch (error) {
+      status(error.message || "That file is not a valid .config.", true);
+    }
+  };
+  reader.readAsText(picked);
+  this.value = "";
+});
+
+// Keep the project fields in sync while typing.
+$("projName").addEventListener("input", function () { if (project) { project.name = this.value; } });
+$("projTitle").addEventListener("input", function () { if (project) { project.title = this.value; } });
+$("projDesc").addEventListener("input", function () { if (project) { project.description = this.value; } });
+
+$("addBtn").addEventListener("click", function () {
+  if (!project) return;
+  project.commands.push(newCommand("", ""));
+  selected = project.commands.length - 1;
+  show();
+  $("cmdName").focus();
+});
+
+$("cmdName").addEventListener("input", function () {
+  const cur = project && project.commands[selected];
+  if (cur) { cur.command = this.value; renderList(); }
+});
+
+$("cmdCode").addEventListener("input", function () {
+  const cur = project && project.commands[selected];
+  if (cur) { cur.python = this.value; }
+});
+
+$("removeBtn").addEventListener("click", function () {
+  if (!project || selected < 0) return;
+  project.commands.splice(selected, 1);
+  selected = Math.min(selected, project.commands.length - 1);
+  show();
+});
+
+function renderList() {
+  const list = $("list");
+  list.innerHTML = "";
+  project.commands.forEach(function (cmd, index) {
+    const li = document.createElement("li");
+    li.textContent = cmd.command || "(unnamed command)";
+    if (index === selected) li.className = "on";
+    li.addEventListener("click", function () { selected = index; show(); });
+    list.appendChild(li);
+  });
+}
+
+function show() {
+  if (!project) {
+    $("editor").hidden = true;
+    $("commandsCard").hidden = true;
+    $("exportCard").hidden = true;
+    return;
+  }
+  $("editor").hidden = false;
+  $("commandsCard").hidden = false;
+  $("exportCard").hidden = false;
+
+  $("projName").value = project.name;
+  $("projTitle").value = project.title;
+  $("projDesc").value = project.description;
+
+  renderList();
+  const cur = project.commands[selected];
+  $("cmdFields").hidden = !cur;
+  $("noCmd").hidden = !!cur;
+  if (cur) {
+    $("cmdName").value = cur.command;
+    $("cmdCode").value = cur.python;
+  }
+}
+
+// Check the project and return an error text, or "" when it is ready.
+function problem() {
+  if (!project) return "Start a new project or load a .config first.";
+  if (!/^[A-Za-z0-9_-]+$/.test(project.name)) return "Project name may only use letters, digits, _ and -.";
+  if (!project.title.trim()) return "Title is required.";
+  const seen = {};
+  for (const cmd of project.commands) {
+    if (!/^[A-Za-z0-9_-]+$/.test(cmd.command)) return "Command name \"" + cmd.command + "\" may only use letters, digits, _ and -.";
+    if (seen[cmd.command]) return "Command name \"" + cmd.command + "\" is used twice.";
+    seen[cmd.command] = true;
+    if (!cmd.python.trim()) return "Python code is empty for \"" + cmd.command + "\".";
+  }
+  return "";
+}
+
+// Every command runs under the project name, as set by "set name to" in Scratch.
+function exportData() {
+  return {
+    name: project.name,
+    title: project.title,
+    description: project.description,
+    commands: project.commands.map((c) => ({ name: project.name, command: c.command, python: c.python })),
+  };
+}
+
+function download(filename, text, type) {
+  const blob = new Blob([text], { type: type });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+$("exportConfig").addEventListener("click", function () {
+  const err = problem();
+  if (err) return status(err, true);
+  download(project.name + ".config", JSON.stringify(exportData(), null, 2) + "\n", "application/json");
+  status("Exported " + project.name + ".config.");
+});
+
+</script>
+</body>
+</html>
